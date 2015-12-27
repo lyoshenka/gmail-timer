@@ -1,7 +1,15 @@
 ;(function(){
 
+  var debugLevel = 1; // 0 = nothing, 1 = basic, 2 = full
+
+  function log(level) {
+    if (level <= debugLevel) {
+      console.log.apply(console, [(new Date()).toISOString()].concat(Array.prototype.slice.call(arguments, 1)));
+    }
+  }
+
   var Timer = (function(){
-    var accumulatedTime = 0, 
+    var accumulatedTime = 0,
         startTime;
 
     return {
@@ -10,17 +18,22 @@
           startTime = Date.now();
         }
       },
-      
+
       stop: function() {
         if (startTime) {
           accumulatedTime += Date.now() - startTime;
-          startTime = null;    
+          startTime = null;
         }
       },
 
       get: function() {
         var time = (startTime ? Date.now() - startTime : 0) + accumulatedTime;
         return Math.round(time / 1000);
+      },
+
+      getAsText: function() {
+        var min = Math.round(this.get() / 60);
+        return Math.round(min/60) + ':' + pad(min%60,2);
       },
 
       set: function(seconds) {
@@ -54,13 +67,15 @@
   container.textContent = 'loading';
   document.body.appendChild(container);
 
-  var loaded = false, 
+  var loaded = false,
       updatedAt,
       resetAt;
 
   var options = {
-    idleTimeout: 30,
-    resetHour: 3
+    idleTimeout: 30, // after being idle for X seconds, the timer stops
+    resetHour: 3,    // at this hour, the clock resets to 0
+    updateFreq: 5,   // update the time display every X seconds
+    saveFreq: 60,    // save the state to Chrome storage every X seconds
   };
 
 
@@ -70,14 +85,20 @@
 
     if (options.idleTimeout > 0) {
       ifvisible.setIdleDuration(options.idleTimeout);
-      ifvisible.on("wakeup", Timer.start); 
-      ifvisible.on("idle", Timer.stop);
+      ifvisible.on("wakeup", function(){
+        log(1, 'wakeup');
+        Timer.start();
+      });
+      ifvisible.on("idle", function(){
+        log(1, 'idle');
+        Timer.stop();
+      });
     }
   };
 
 
   var save = function() {
-    console.log('gmail-timer', 'save', (new Date()).toISOString());
+    log(1, 'save', Timer.getAsText());
     chrome.storage.sync.set({
       timeOnPage: Timer.get(),
       updatedAt: Date.now()
@@ -85,16 +106,16 @@
   };
 
 
-  var update = function() {
+  var updateDisplay = function() {
     if (Date.now() > resetAt) {
-      console.log('gmail-timer', 'reset', (new Date()).toISOString());
+      log(1, 'reset');
       Timer.reset();
       updatedAt = Date.now();
       resetAt = calcResetAt(updatedAt);
     }
-    var time = Math.round(Timer.get() / 60);
-    console.log('gmail-timer', 'update', (new Date()).toISOString(), time);
-    container.textContent =  Math.round(time/60) + ':' + pad(time%60,2);  
+    var text = Timer.getAsText();
+    log(container.textContent == text ? 2 : 1, 'updateDisplay', text, Timer.get());
+    container.textContent = text;
   };
 
 
@@ -105,18 +126,22 @@
 
 
   window.onload = function() {
-    console.log('gmail-timer', 'onload', (new Date()).toISOString());
+    log(1, 'onload');
     chrome.storage.sync.get(null, function(items) {
+
       Timer.set(items.timeOnPage || 0);
-      Timer.start();
       updatedAt = items.updatedAt || Date.now();
       resetAt = calcResetAt(updatedAt);
-      update();
+
+      Timer.start();
+      updateDisplay();
       initEvents();
+
       loaded = true;
-      setInterval(update, 5000);
-      setInterval(save,   60000);
-    }); 
+
+      setInterval(updateDisplay, options.updateFreq*1000);
+      setInterval(save, options.saveFreq*1000);
+    });
   };
 
 
