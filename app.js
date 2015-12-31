@@ -33,7 +33,7 @@
 
       getAsText: function() {
         var min = Math.round(this.get() / 60);
-        return Math.round(min/60) + ':' + pad(min%60,2);
+        return Math.floor(min/60) + ':' + pad(min%60,2);
       },
 
       set: function(seconds) {
