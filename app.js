@@ -58,8 +58,28 @@
   };
 
 
+  function currentPage() {
+    var hash  = window.location.hash.split('#').pop().split('?').shift().split("/") || [null];
+    var pages = ['sent', 'inbox', 'starred', 'drafts', 'imp', 'chats', 'all', 'spam', 'trash',
+                 'settings', 'label', 'category', 'circle', 'search'];
+
+    var page = null;
+
+    if(pages.indexOf(hash[0]) > -1) {
+      page = hash[0];
+    }
+
+    if(page == 'inbox' && hash.length == 2) {
+      return 'email';
+    }
+
+    return page;
+  }
 
 
+  if (!currentPage()) {
+    return;
+  }
 
 
   var container = document.createElement('div');
